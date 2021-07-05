@@ -1,36 +1,263 @@
 <template>
   <div class="app-container">
-    <el-alert :closable="false" title="订单状态流转中心" type="success" />
-    <el-form label-width="170px" style="margin-top: 20px">
-      <el-form-item label="三级菜单缓存功能测试区">
-        <el-input v-model="input" placeholder="请输入内容" style="width: 360px;" />
-      </el-form-item>
-    </el-form>
-    <div>
-      <blockquote class="my-blockquote"> 三级菜单缓存配置教程</blockquote>
-      <pre class="my-code">
- 1、将前后端代码更新为最新版版本，或对照提交记录修改,点击查看-> <a href="https://gitee.com/elunez/eladmin/commit/43d1a63577f9d5347924355708429a2d210e29f7" target="_blank">提交(1)</a>、<a href="https://gitee.com/elunez/eladmin/commit/46393875148fcca5eaa327d4073f72edb3752f5c" target="_blank">提交(2)</a>、<a href="https://gitee.com/elunez/eladmin-web/commit/c93c99d8921abbb2c52afc806635f5ca08d6bda8" target="_blank">提交(3)</a>
- 2、将 二级菜单 的 菜单类型 设置为 目录 级别，并且原有的 组件路径 需要清空
- 3、将 三级菜单 的 菜单缓存 设置为 是，最后将 组件名称 填写正确
- 4、具体设置可参考 菜单管理 的 多级菜单 配置进行进行相应的修改
- </pre>
-      <blockquote class="my-blockquote">更多帮助</blockquote>
-      <pre class="my-code">QQ交流群：一群：891137268、二群：947578238</pre>
-    </div>
+    <!--Form表单-->
+    <el-dialog :close-on-click-modal="false" :before-close="crud.cancelCU" :visible.sync="crud.status.cu > 0" :title="crud.status.title" append-to-body width="730px">
+      <el-form ref="form" :inline="true" :model="form" :rules="rules" size="small" label-width="100px">
+        <el-form-item label="任务名称" prop="jobName">
+          <el-input v-model="form.jobName" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="任务描述" prop="description">
+          <el-input v-model="form.description" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="Bean名称" prop="beanName">
+          <el-input v-model="form.beanName" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="执行方法" prop="methodName">
+          <el-input v-model="form.methodName" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="Cron表达式" prop="cronExpression">
+          <el-input v-model="form.cronExpression" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="子任务ID">
+          <el-input v-model="form.subTask" placeholder="多个用逗号隔开，按顺序执行" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="任务负责人" prop="personInCharge">
+          <el-input v-model="form.personInCharge" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="告警邮箱" prop="email">
+          <el-input v-model="form.email" placeholder="多个邮箱用逗号隔开" style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="失败后暂停">
+          <el-radio-group v-model="form.pauseAfterFailure" style="width: 220px">
+            <el-radio :label="true">是</el-radio>
+            <el-radio :label="false">否</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="任务状态">
+          <el-radio-group v-model="form.isPause" style="width: 220px">
+            <el-radio :label="false">启用</el-radio>
+            <el-radio :label="true">暂停</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="参数内容">
+          <el-input v-model="form.params" style="width: 556px;" rows="4" type="textarea" />
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button type="text" @click="crud.cancelCU">取消</el-button>
+        <el-button :loading="crud.status.cu === 2" type="primary" @click="crud.submitCU">确认</el-button>
+      </div>
+    </el-dialog>
+    <!--表格渲染-->
+    <el-table ref="table" v-loading="crud.loading" :data="crud.data" style="width: 100%;" @selection-change="crud.selectionChangeHandler">
+      <el-table-column :show-overflow-tooltip="true" prop="id" label="任务ID" />
+      <el-table-column :show-overflow-tooltip="true" prop="jobName" label="任务名称" />
+      <el-table-column :show-overflow-tooltip="true" prop="beanName" label="Bean名称" />
+      <el-table-column :show-overflow-tooltip="true" prop="methodName" label="执行方法" />
+      <el-table-column :show-overflow-tooltip="true" prop="params" label="参数" />
+      <el-table-column :show-overflow-tooltip="true" prop="cronExpression" label="cron表达式" />
+      <el-table-column :show-overflow-tooltip="true" prop="isPause" width="90px" label="状态">
+        <template slot-scope="scope">
+          <el-tag :type="scope.row.isPause ? 'warning' : 'success'">{{ scope.row.isPause ? '已暂停' : '运行中' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column :show-overflow-tooltip="true" prop="description" width="150px" label="描述" />
+      <el-table-column :show-overflow-tooltip="true" prop="createTime" width="136px" label="创建日期" />
+      <el-table-column v-if="checkPer(['admin','timing:edit','timing:del'])" label="操作" width="170px" align="center" fixed="right">
+        <template slot-scope="scope">
+          <el-button v-permission="['admin','timing:edit']" size="mini" style="margin-right: 3px;" type="text" @click="crud.toEdit(scope.row)">编辑</el-button>
+          <el-button v-permission="['admin','timing:edit']" style="margin-left: -2px" type="text" size="mini" @click="execute(scope.row.id)">执行</el-button>
+          <el-button v-permission="['admin','timing:edit']" style="margin-left: 3px" type="text" size="mini" @click="updateStatus(scope.row.id,scope.row.isPause ? '恢复' : '暂停')">
+            {{ scope.row.isPause ? '恢复' : '暂停' }}
+          </el-button>
+          <el-popover
+            :ref="scope.row.id"
+            v-permission="['admin','timing:del']"
+            placement="top"
+            width="200"
+          >
+            <p>确定停止并删除该任务吗？</p>
+            <div style="text-align: right; margin: 0">
+              <el-button size="mini" type="text" @click="$refs[scope.row.id].doClose()">取消</el-button>
+              <el-button :loading="delLoading" type="primary" size="mini" @click="delMethod(scope.row.id)">确定</el-button>
+            </div>
+            <el-button slot="reference" type="text" size="mini">删除</el-button>
+          </el-popover>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <!-- 自定义表格 -->
+    <el-table
+      :data="tableData"
+      border
+      style="width: 100%"
+    >
+      <el-table-column
+        fixed
+        prop="date"
+        label="日期"
+        width="150"
+      />
+      <el-table-column
+        prop="name"
+        label="姓名"
+        width="120"
+      />
+      <el-table-column
+        prop="province"
+        label="省份"
+        width="120"
+      />
+      <el-table-column
+        prop="city"
+        label="市区"
+        width="120"
+      />
+      <el-table-column
+        prop="address"
+        label="地址"
+        width="300"
+      />
+      <el-table-column
+        prop="zip"
+        label="邮编"
+        width="120"
+      />
+      <el-table-column
+        fixed="right"
+        label="操作"
+        width="100"
+      >
+        <template slot-scope="scope">
+          <el-button type="text" size="small" @click="handleClick(scope.row)">查看</el-button>
+          <el-button type="text" size="small">编辑</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
   </div>
 </template>
+
 <script>
+import crudJob from '@/api/system/timing'
+import CRUD, { presenter, header, form, crud } from '@crud/crud'
+
+const defaultForm = { id: null, jobName: null, subTask: null, beanName: null, methodName: null, params: null, cronExpression: null, pauseAfterFailure: true, isPause: false, personInCharge: null, email: null, description: null }
 export default {
-  name: 'Test',
+
+  name: 'Timing',
+  cruds() {
+    return CRUD({ title: '定时任务', url: 'api/jobs', crudMethod: { ...crudJob }})
+  },
+  mixins: [presenter(), header(), form(defaultForm), crud()],
   data() {
     return {
-      input: ''
+      delLoading: false,
+      permission: {
+        add: ['admin', 'timing:add'],
+        edit: ['admin', 'timing:edit'],
+        del: ['admin', 'timing:del']
+      },
+      rules: {
+        jobName: [
+          { required: true, message: '请输入任务名称', trigger: 'blur' }
+        ],
+        description: [
+          { required: true, message: '请输入任务描述', trigger: 'blur' }
+        ],
+        beanName: [
+          { required: true, message: '请输入Bean名称', trigger: 'blur' }
+        ],
+        methodName: [
+          { required: true, message: '请输入方法名称', trigger: 'blur' }
+        ],
+        cronExpression: [
+          { required: true, message: '请输入Cron表达式', trigger: 'blur' }
+        ],
+        personInCharge: [
+          { required: true, message: '请输入负责人名称', trigger: 'blur' }
+        ],
+        tableData: [{
+          date: '2016-05-02',
+          name: '王小虎',
+          province: '上海',
+          city: '普陀区',
+          address: '上海市普陀区金沙江路 1518 弄',
+          zip: 200333
+        }, {
+          date: '2016-05-04',
+          name: '王小虎',
+          province: '上海',
+          city: '普陀区',
+          address: '上海市普陀区金沙江路 1517 弄',
+          zip: 200333
+        }, {
+          date: '2016-05-01',
+          name: '王小虎',
+          province: '上海',
+          city: '普陀区',
+          address: '上海市普陀区金沙江路 1519 弄',
+          zip: 200333
+        }, {
+          date: '2016-05-03',
+          name: '王小虎',
+          province: '上海',
+          city: '普陀区',
+          address: '上海市普陀区金沙江路 1516 弄',
+          zip: 200333
+        }]
+      }
+    }
+  },
+  methods: {
+    handleClick(row) {
+      console.log(row)
+    },
+    // 执行
+    execute(id) {
+      crudJob.execution(id).then(res => {
+        this.crud.notify('执行成功', CRUD.NOTIFICATION_TYPE.SUCCESS)
+      }).catch(err => {
+        console.log(err.response.data.message)
+      })
+    },
+    // 改变状态
+    updateStatus(id, status) {
+      if (status === '恢复') {
+        this.updateParams(id)
+      }
+      crudJob.updateIsPause(id).then(res => {
+        this.crud.toQuery()
+        this.crud.notify(status + '成功', CRUD.NOTIFICATION_TYPE.SUCCESS)
+      }).catch(err => {
+        console.log(err.response.data.message)
+      })
+    },
+    updateParams(id) {
+      console.log(id)
+    },
+    delMethod(id) {
+      this.delLoading = true
+      crudJob.del([id]).then(() => {
+        this.delLoading = false
+        this.$refs[id].doClose()
+        this.crud.dleChangePage(1)
+        this.crud.delSuccessNotify()
+        this.crud.toQuery()
+      }).catch(() => {
+        this.delLoading = false
+        this.$refs[id].doClose()
+      })
+    },
+    // 显示日志
+    doLog() {
+      this.$refs.log.dialog = true
+      this.$refs.log.doInit()
+    },
+    checkboxT(row, rowIndex) {
+      return row.id !== 1
     }
   }
 }
 </script>
-<style scoped>
-  .my-code a{
-    color:#009688;
-  }
-</style>

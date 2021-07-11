@@ -1,263 +1,120 @@
+import axios from 'axios';
+
 <template>
-  <div class="app-container">
-    <!--Form表单-->
-    <el-dialog :close-on-click-modal="false" :before-close="crud.cancelCU" :visible.sync="crud.status.cu > 0" :title="crud.status.title" append-to-body width="730px">
-      <el-form ref="form" :inline="true" :model="form" :rules="rules" size="small" label-width="100px">
-        <el-form-item label="任务名称" prop="jobName">
-          <el-input v-model="form.jobName" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="任务描述" prop="description">
-          <el-input v-model="form.description" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="Bean名称" prop="beanName">
-          <el-input v-model="form.beanName" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="执行方法" prop="methodName">
-          <el-input v-model="form.methodName" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="Cron表达式" prop="cronExpression">
-          <el-input v-model="form.cronExpression" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="子任务ID">
-          <el-input v-model="form.subTask" placeholder="多个用逗号隔开，按顺序执行" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="任务负责人" prop="personInCharge">
-          <el-input v-model="form.personInCharge" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="告警邮箱" prop="email">
-          <el-input v-model="form.email" placeholder="多个邮箱用逗号隔开" style="width: 220px;" />
-        </el-form-item>
-        <el-form-item label="失败后暂停">
-          <el-radio-group v-model="form.pauseAfterFailure" style="width: 220px">
-            <el-radio :label="true">是</el-radio>
-            <el-radio :label="false">否</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="任务状态">
-          <el-radio-group v-model="form.isPause" style="width: 220px">
-            <el-radio :label="false">启用</el-radio>
-            <el-radio :label="true">暂停</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="参数内容">
-          <el-input v-model="form.params" style="width: 556px;" rows="4" type="textarea" />
-        </el-form-item>
-      </el-form>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="text" @click="crud.cancelCU">取消</el-button>
-        <el-button :loading="crud.status.cu === 2" type="primary" @click="crud.submitCU">确认</el-button>
-      </div>
-    </el-dialog>
-    <!--表格渲染-->
-    <el-table ref="table" v-loading="crud.loading" :data="crud.data" style="width: 100%;" @selection-change="crud.selectionChangeHandler">
-      <el-table-column :show-overflow-tooltip="true" prop="id" label="任务ID" />
-      <el-table-column :show-overflow-tooltip="true" prop="jobName" label="任务名称" />
-      <el-table-column :show-overflow-tooltip="true" prop="beanName" label="Bean名称" />
-      <el-table-column :show-overflow-tooltip="true" prop="methodName" label="执行方法" />
-      <el-table-column :show-overflow-tooltip="true" prop="params" label="参数" />
-      <el-table-column :show-overflow-tooltip="true" prop="cronExpression" label="cron表达式" />
-      <el-table-column :show-overflow-tooltip="true" prop="isPause" width="90px" label="状态">
-        <template slot-scope="scope">
-          <el-tag :type="scope.row.isPause ? 'warning' : 'success'">{{ scope.row.isPause ? '已暂停' : '运行中' }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column :show-overflow-tooltip="true" prop="description" width="150px" label="描述" />
-      <el-table-column :show-overflow-tooltip="true" prop="createTime" width="136px" label="创建日期" />
-      <el-table-column v-if="checkPer(['admin','timing:edit','timing:del'])" label="操作" width="170px" align="center" fixed="right">
-        <template slot-scope="scope">
-          <el-button v-permission="['admin','timing:edit']" size="mini" style="margin-right: 3px;" type="text" @click="crud.toEdit(scope.row)">编辑</el-button>
-          <el-button v-permission="['admin','timing:edit']" style="margin-left: -2px" type="text" size="mini" @click="execute(scope.row.id)">执行</el-button>
-          <el-button v-permission="['admin','timing:edit']" style="margin-left: 3px" type="text" size="mini" @click="updateStatus(scope.row.id,scope.row.isPause ? '恢复' : '暂停')">
-            {{ scope.row.isPause ? '恢复' : '暂停' }}
-          </el-button>
-          <el-popover
-            :ref="scope.row.id"
-            v-permission="['admin','timing:del']"
-            placement="top"
-            width="200"
-          >
-            <p>确定停止并删除该任务吗？</p>
-            <div style="text-align: right; margin: 0">
-              <el-button size="mini" type="text" @click="$refs[scope.row.id].doClose()">取消</el-button>
-              <el-button :loading="delLoading" type="primary" size="mini" @click="delMethod(scope.row.id)">确定</el-button>
-            </div>
-            <el-button slot="reference" type="text" size="mini">删除</el-button>
-          </el-popover>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <!-- 自定义表格 -->
-    <el-table
-      :data="tableData"
-      border
-      style="width: 100%"
-    >
-      <el-table-column
-        fixed
-        prop="date"
-        label="日期"
-        width="150"
-      />
-      <el-table-column
-        prop="name"
-        label="姓名"
-        width="120"
-      />
-      <el-table-column
-        prop="province"
-        label="省份"
-        width="120"
-      />
-      <el-table-column
-        prop="city"
-        label="市区"
-        width="120"
-      />
-      <el-table-column
-        prop="address"
-        label="地址"
-        width="300"
-      />
-      <el-table-column
-        prop="zip"
-        label="邮编"
-        width="120"
-      />
-      <el-table-column
-        fixed="right"
-        label="操作"
-        width="100"
+  <!-- eslint-disable -->
+  <div id="order">
+    <h1 style="text-align: center">物流签收</h1>
+    <el-col :span="8" class="inputOrder">
+      <span style="margin: 10px 10px">请输入原始订单ID</span>
+      <el-input
+        placeholder="请输入原始订单ID"
+        v-model="inputValue"
+        clearable
+        class="inputOrder"
+        value="testddd"
       >
-        <template slot-scope="scope">
-          <el-button type="text" size="small" @click="handleClick(scope.row)">查看</el-button>
-          <el-button type="text" size="small">编辑</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
+      </el-input>
+    </el-col>
+    <el-row style="float: right" class="operatorButton">
+      <el-button @click="jumpOrder">审核订单</el-button>
+      <el-button type="primary" @click="handleCk">订单出库</el-button>
+      <el-button type="primary" @click="handleQs">订单签收</el-button>
+      <el-button type="primary" @click="handleCkDbl"
+        >订单出库（拆单）</el-button
+      >
+      <el-button type="primary" @click="handleQsDbl"
+        >订单签收（拆单）</el-button
+      >
+    </el-row>
   </div>
 </template>
-
 <script>
-import crudJob from '@/api/system/timing'
-import CRUD, { presenter, header, form, crud } from '@crud/crud'
+/* eslint-disable */
+import axios from "axios";
 
-const defaultForm = { id: null, jobName: null, subTask: null, beanName: null, methodName: null, params: null, cronExpression: null, pauseAfterFailure: true, isPause: false, personInCharge: null, email: null, description: null }
 export default {
-
-  name: 'Timing',
-  cruds() {
-    return CRUD({ title: '定时任务', url: 'api/jobs', crudMethod: { ...crudJob }})
-  },
-  mixins: [presenter(), header(), form(defaultForm), crud()],
   data() {
     return {
-      delLoading: false,
-      permission: {
-        add: ['admin', 'timing:add'],
-        edit: ['admin', 'timing:edit'],
-        del: ['admin', 'timing:del']
-      },
-      rules: {
-        jobName: [
-          { required: true, message: '请输入任务名称', trigger: 'blur' }
-        ],
-        description: [
-          { required: true, message: '请输入任务描述', trigger: 'blur' }
-        ],
-        beanName: [
-          { required: true, message: '请输入Bean名称', trigger: 'blur' }
-        ],
-        methodName: [
-          { required: true, message: '请输入方法名称', trigger: 'blur' }
-        ],
-        cronExpression: [
-          { required: true, message: '请输入Cron表达式', trigger: 'blur' }
-        ],
-        personInCharge: [
-          { required: true, message: '请输入负责人名称', trigger: 'blur' }
-        ],
-        tableData: [{
-          date: '2016-05-02',
-          name: '王小虎',
-          province: '上海',
-          city: '普陀区',
-          address: '上海市普陀区金沙江路 1518 弄',
-          zip: 200333
-        }, {
-          date: '2016-05-04',
-          name: '王小虎',
-          province: '上海',
-          city: '普陀区',
-          address: '上海市普陀区金沙江路 1517 弄',
-          zip: 200333
-        }, {
-          date: '2016-05-01',
-          name: '王小虎',
-          province: '上海',
-          city: '普陀区',
-          address: '上海市普陀区金沙江路 1519 弄',
-          zip: 200333
-        }, {
-          date: '2016-05-03',
-          name: '王小虎',
-          province: '上海',
-          city: '普陀区',
-          address: '上海市普陀区金沙江路 1516 弄',
-          zip: 200333
-        }]
-      }
-    }
+      inputValue: "",
+    };
   },
+  // TODO 使用axios请求接口
+  // https://github.com/axios/axios
   methods: {
-    handleClick(row) {
-      console.log(row)
+    jumpOrder() {
+      window.open(
+        "http://stable.fe-ecommerce.nt.qa.fiture.com/order/investigate",
+        "_blank"
+      );
     },
-    // 执行
-    execute(id) {
-      crudJob.execution(id).then(res => {
-        this.crud.notify('执行成功', CRUD.NOTIFICATION_TYPE.SUCCESS)
-      }).catch(err => {
-        console.log(err.response.data.message)
+    handleCk() {
+      console.log(this.inputValue);
+      axios
+        .get(
+          "https://tianqiapi.com/api?version=history&appid=&appsecret=&city=青岛&year=2018&month=5"
+        )
+        .then((res) => {
+          console.log(res);
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+    },
+    handleQs() {
+      console.log(this.inputValue);
+      axios({
+        method: "get",
+        headers: { "Content-Type": "application/json" },
+        headers: { AA: "VV" },
+        url: "https://tianqiapi.com/api?version=history&appid=&appsecret=&city=青岛&year=2018&month=5",
+        data: {
+          name: "cc",
+        },
+      });
+    },
+    handleCkDbl() {
+      console.log(this.inputValue);
+      // axios请求put接口
+      axios({
+        method: "put",
+        headers: { "Content-Type": "application/json" },
+        headers: { AA: "VV" },
+        url: "https://jsonplaceholder.typicode.com/posts/1",
+        data: {
+          id: 1,
+          title: "foo",
+          body: "bar",
+          userId: 1,
+        },
+      });
+    },
+    handleQsDbl() {
+      console.log(this.inputValue);
+      // fetch请求接口https://jsonplaceholder.typicode.com/guide/
+      fetch("https://jsonplaceholder.typicode.com/posts/1", {
+        method: "PUT",
+        body: JSON.stringify({
+          id: 1,
+          title: "foo",
+          body: "bar",
+          userId: 1,
+        }),
+        headers: {
+          "Content-type": "application/json; charset=UTF-8",
+        },
       })
+        .then((response) => response.json())
+        .then((json) => console.log(json));
     },
-    // 改变状态
-    updateStatus(id, status) {
-      if (status === '恢复') {
-        this.updateParams(id)
-      }
-      crudJob.updateIsPause(id).then(res => {
-        this.crud.toQuery()
-        this.crud.notify(status + '成功', CRUD.NOTIFICATION_TYPE.SUCCESS)
-      }).catch(err => {
-        console.log(err.response.data.message)
-      })
-    },
-    updateParams(id) {
-      console.log(id)
-    },
-    delMethod(id) {
-      this.delLoading = true
-      crudJob.del([id]).then(() => {
-        this.delLoading = false
-        this.$refs[id].doClose()
-        this.crud.dleChangePage(1)
-        this.crud.delSuccessNotify()
-        this.crud.toQuery()
-      }).catch(() => {
-        this.delLoading = false
-        this.$refs[id].doClose()
-      })
-    },
-    // 显示日志
-    doLog() {
-      this.$refs.log.dialog = true
-      this.$refs.log.doInit()
-    },
-    checkboxT(row, rowIndex) {
-      return row.id !== 1
-    }
-  }
-}
+  },
+};
 </script>
+
+<style rel="stylesheet/scss" lang="scss" scoped>
+.operatorButton {
+  margin: 80px 60px 80px 60px;
+}
+.inputOrder {
+  margin: 10px 10px 10px 10px;
+}
+</style>
